@@ -4,9 +4,28 @@ import threading
 import queue
 import time
 import collections
+import json # Para lidar com a saída do Vosk
 
-recognizer = sr.Recognizer()
+from vosk import Model, KaldiRecognizer
+import pyaudio 
 
+# Carrega o modelo Vosk (fora da função para carregar apenas uma vez)
+# Certifique-se de que o caminho para o modelo Vosk está correto!
+VOSK_MODEL_PATH = "vosk-model-small-en-us-0.15" # Atualize este caminho
+try:
+    vosk_model = Model(VOSK_MODEL_PATH)
+except Exception as e:
+    print(f"[ERRO] Falha ao carregar o modelo Vosk em {VOSK_MODEL_PATH}: {e}")
+    print("Certifique-se de que baixou e descompactou o modelo Vosk corretamente.")
+    # Se não puder carregar, o programa não deve continuar sem reconhecimento de fala
+    exit() 
+
+# --- Fim das Adições para Vosk ---
+
+# Inicializa o reconhecedor (usaremos com Vosk agora)
+# recognizer = sr.Recognizer() # Não será usado diretamente com stream do PyAudio
+
+# Inicializa o classificador de emoções de texto globalmente
 text_emotion_classifier = pipeline(
     "text-classification",
     model="j-hartmann/emotion-english-distilroberta-base",
@@ -14,54 +33,74 @@ text_emotion_classifier = pipeline(
 )
 
 speech_emotion_queue = queue.Queue()
-
 stop_speech_event = threading.Event()
-
 speech_buffer = collections.deque(maxlen=3) 
 
 def speech_recognition_thread_func():
     print("[SPEECH] Thread de reconhecimento de fala iniciada.")
-    with sr.Microphone() as source:
-        recognizer.adjust_for_ambient_noise(source) 
-        print("[SPEECH] Microfone ajustado para ruído ambiente. Ouvindo...")
 
-        while not stop_speech_event.is_set():
-            try:
-                audio = recognizer.listen(source, timeout=5, phrase_time_limit=10) 
-                
-                text = recognizer.recognize_google(audio, language="en-US")
-                print(f"[SPEECH] Você disse: {text}")
-                
-                speech_buffer.append(text)
+    # Configurações do PyAudio para stream
+    CHUNK = 8192 # Tamanho do chunk de áudio para processar
+    FORMAT = pyaudio.paInt16
+    CHANNELS = 1
+    RATE = 16000 # Vosk geralmente prefere 16kHz
 
-                predictions = text_emotion_classifier(text)[0]
-                sorted_preds = sorted(predictions, key=lambda x: x['score'], reverse=True)
-                top_emotion = sorted_preds[0]
-                
-                speech_emotion_queue.put({
-                    "timestamp": time.time(),
-                    "dominant_emotion": top_emotion['label'],
-                    "probabilities": {p['label']: p['score'] for p in predictions}
-                })
+    p = pyaudio.PyAudio()
+    stream = p.open(format=FORMAT,
+                    channels=CHANNELS,
+                    rate=RATE,
+                    input=True,
+                    frames_per_buffer=CHUNK)
 
-            except sr.WaitTimeoutError:
-                # print("[SPEECH] Sem fala detectada por um tempo.")
-                pass # Nenhuma fala detectada, continua o loop
-            except sr.UnknownValueError:
-                print("[SPEECH] Não foi possível entender o áudio.")
-            except sr.RequestError as e:
-                print(f"[SPEECH] Erro no serviço de reconhecimento: {e}")
-            except Exception as e:
-                print(f"[SPEECH] Erro inesperado na thread de fala: {e}")
-                break # Sai do loop em caso de erro grave
+    # Inicializa o reconhecedor Vosk para a stream
+    vosk_recognizer = KaldiRecognizer(vosk_model, RATE)
 
+    print("[SPEECH] Microfone ajustado e ouvindo para reconhecimento offline...")
+
+    while not stop_speech_event.is_set():
+        try:
+            data = stream.read(CHUNK, exception_on_overflow=False)
+            # Verifica se há fala no chunk de áudio
+            if vosk_recognizer.AcceptWaveform(data):
+                result_json = vosk_recognizer.Result()
+                result = json.loads(result_json)
+                text = result.get('text', '').strip()
+
+                if text: # Apenas se houver texto reconhecido
+                    print(f"[SPEECH] Você disse: {text}")
+                    speech_buffer.append(text)
+
+                    # Classifica a emoção do texto
+                    predictions = text_emotion_classifier(text)[0]
+                    sorted_preds = sorted(predictions, key=lambda x: x['score'], reverse=True)
+                    top_emotion = sorted_preds[0]
+
+                    speech_emotion_queue.put({
+                        "timestamp": time.time(),
+                        "dominant_emotion": top_emotion['label'],
+                        "probabilities": {p['label']: p['score'] for p in predictions}
+                    })
+            # else:
+            #     # Se não houver fala aceita, pode pegar o partial result se desejar
+            #     # partial_text = vosk_recognizer.PartialResult()
+            #     # print(f"Partial: {json.loads(partial_text)['partial']}")
+            #     pass
+
+        except Exception as e:
+            print(f"[SPEECH] Erro inesperado na thread de fala: {e}")
+            break 
+
+    # Garante que a stream é fechada ao sair do loop
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
     print("[SPEECH] Thread de reconhecimento de fala finalizada.")
 
-# --- Funções para Gerenciamento ---
+# --- Funções para Gerenciamento (permanecem as mesmas) ---
 def start_speech_thread():
     """Inicia a thread de reconhecimento de fala."""
     global speech_thread
-    stop_speech_event.clear() # Garante que o evento de parada esteja limpo
+    stop_speech_event.clear() 
     speech_thread = threading.Thread(target=speech_recognition_thread_func)
     speech_thread.start()
 
@@ -70,7 +109,7 @@ def stop_speech_thread():
     print("[SPEECH] Sinalizando thread de fala para parar...")
     stop_speech_event.set()
     if 'speech_thread' in globals() and speech_thread.is_alive():
-        speech_thread.join(timeout=5) # Espera a thread terminar
+        speech_thread.join(timeout=5)
         if speech_thread.is_alive():
             print("[SPEECH] Aviso: Thread de fala pode não ter terminado graciosamente.")
 
