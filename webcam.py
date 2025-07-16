@@ -30,9 +30,18 @@ def main():
     saveframe = args.saveframe
     dev = args.device
     
-    print('Dispositivo de processamento:', dev)
     if dev == 'gpu':
-        dev = 'cuda'
+        if torch.backends.mps.is_available():
+            dev = 'mps'
+            print("Dispositivo de processamento: Apple GPU (MPS)")
+        elif torch.cuda.is_available():
+            dev = 'cuda'
+            print("Dispositivo de processamento: NVIDIA GPU (CUDA)")
+        else:
+            print("GPU solicitada, mas indisponível. Usando CPU.")
+            dev = 'cpu'
+    else:
+        print('Dispositivo de processamento:', dev)
 
     video_stream = cv2.VideoCapture(args.cameraID)
     if not video_stream.isOpened():

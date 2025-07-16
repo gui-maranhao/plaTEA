@@ -2,3 +2,15 @@ google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
 neptune
+numpy
+opencv-python
+torch
+torchvision
+torchaudio
+transformers
+timm==0.9.7
+Pillow
+vosk
+pyaudio
+SpeechRecognition
+mediapipe
