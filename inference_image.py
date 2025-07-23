@@ -2,6 +2,55 @@ import cv2
 import torch
 from utils import EmotionPerceiver, get_face_locations_mediapipe
 
+################ Meet selenium Integration ######################################
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import time
+
+MEET_SCREENSHOT_PATH = 'meet_grid_view.png'
+##################################################################################
+
+################ Meet Selenium Integration ########################################
+def options():
+    """Configura as opções do Chrome para a sessão do Selenium."""
+    opt = Options()
+    opt.add_argument("--disable-infobars")
+    opt.add_argument("start-maximized")
+    opt.add_argument("--disable-extensions")
+    # Passa o argumento 1 para permitir e 2 para bloquear
+    opt.add_experimental_option("prefs", {
+        "profile.default_content_setting_values.media_stream_mic": 2, 
+        "profile.default_content_setting_values.media_stream_camera": 2,
+        "profile.default_content_setting_values.geolocation": 2, 
+        "profile.default_content_setting_values.notifications": 2 
+    })
+    # Opções para evitar a detecção de automação pelo Google
+    opt.add_argument("--disable-blink-features=AutomationControlled")
+    opt.add_experimental_option("excludeSwitches", ["enable-automation"])
+    opt.add_experimental_option('useAutomationExtension', False)
+    return opt
+
+def screenshot(driver):
+    """
+    Ajusta o layout do Google Meet para Mosaico com o máximo de participantes,
+    garante que nenhuma tela esteja fixada e tira uma captura de tela.
+    """
+    driver.save_screenshot(MEET_SCREENSHOT_PATH)
+    print(f"Captura de tela salva com sucesso em: {MEET_SCREENSHOT_PATH}")
+
+def waiting():
+    """Espera pela confirmação do usuário para prosseguir."""
+    x = input("Já está na sala? (y/n): ")
+    while x.lower()!= "y":
+        x = input("Já está na sala? (y/n): ")
+
+###############################################################################
+
 def analisar_emocoes_em_imagem(caminho_imagem):
     if torch.backends.mps.is_available():
         dev = 'mps'
@@ -38,8 +87,8 @@ def analisar_emocoes_em_imagem(caminho_imagem):
         
     return resultados
 
-if __name__ == '__main__':
-    CAMINHO_DA_IMAGEM = "input_test.jpeg"
+def main():
+    CAMINHO_DA_IMAGEM = MEET_SCREENSHOT_PATH
     dados_das_emocoes = analisar_emocoes_em_imagem(CAMINHO_DA_IMAGEM)
 
     print("\n--- RESULTADO FINAL ---")
@@ -59,3 +108,16 @@ if __name__ == '__main__':
         # cv2.imshow("Resultados", imagem_visualizacao)
         # cv2.waitKey(0)
         # cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    link = "https://meet.google.com/trm-pwki-kwy"
+    driver = webdriver.Chrome(options=options())
+    driver.get(link)
+
+    waiting()
+
+    # Chama a nova função para ajustar o layout e tirar a foto
+    while True:
+        screenshot(driver)
+        main()
+        time.sleep(60)

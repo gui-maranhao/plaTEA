@@ -18,3 +18,7 @@ env/
 build/
 dist/
 *.egg-info/
+
+# fotos
+inference_image.py
+meet_grid_view.png
