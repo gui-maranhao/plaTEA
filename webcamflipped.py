@@ -26,6 +26,19 @@ opposite_pairs = [
     ("surprise", "neutral")
 ]
 
+emotion_color_map = {
+    'anger': (0, 0, 255),        # Vermelho
+    'sadness': (255, 0, 0),      # Azul
+    'disgust': (0, 128, 0),      # Verde escuro
+    'fear': (128, 0, 128),       # Roxo escuro
+    'surprise': (0, 165, 255),   # Laranja
+    'happiness': (0, 255, 255),  # Amarelo
+    'contempt': (0, 255, 0),   # Verde
+    'neutral': (192, 192, 192),  # Cinza claro
+    'irony': (203, 182, 255),    # Rosa claro
+}
+
+
 def are_opposites(emotion1, emotion2):
     e1 = emotion1.lower()
     e2 = emotion2.lower()
@@ -40,7 +53,8 @@ def main():
     args = parser.parse_args()
 
     saveframe = args.saveframe.lower() == "true"
-    dev = 'cuda' if args.device.lower() == 'gpu' else 'cpu'
+    #dev = 'cuda' if args.device.lower() == 'gpu' else 'cpu'
+    dev = 'cpu'
     print('Dispositivo de processamento:', dev)
 
     video_stream = cv2.VideoCapture(args.cameraID)
@@ -48,14 +62,19 @@ def main():
         print(f"[ERRO] Não foi possível abrir a câmera com ID {args.cameraID}.")
         return
 
+    print("Inicializando EmotionPerceiver...")
     fer_pipeline = EmotionPerceiver(device=dev)
+    print("EmotionPerceiver OK")
     prev_face_emotion = ""
     prev_speech_emotion_console = ""
 
     # inicia thread da fala
+    print("Iniciando thread da fala...")
     start_speech_thread()
+    print("Thread da fala OK")
 
     # Configura câmera virtual
+    print("Configurando câmera virtual...")
     width, height, fps = 1280, 720, 20
     cam = None
     backend_order = ('dshow', 'obs', 'unitycapture', None)
@@ -100,7 +119,7 @@ def main():
                             speech_probs = latest_speech_data['probabilities']
                             speech_dom = max(speech_probs, key=speech_probs.get)
                             last_speech_emotion_display = speech_dom
-                            combined_probs = {label:(0.3*face_scores.get(label,0.0)+0.7*speech_probs.get(label,0.0)) for label in face_scores}
+                            combined_probs = {label:(0.35*face_scores.get(label,0.0)+0.65*speech_probs.get(label,0.0)) for label in face_scores}
                             if are_opposites(speech_dom, face_emotion):
                                 if speech_probs[speech_dom] > 0.6 and face_scores.get(face_emotion, 0) > 0.6:
                                     last_combined_emotion = "Irony"
@@ -111,8 +130,12 @@ def main():
                             if prev_speech_emotion_console != speech_dom:
                                 print(f"[FALA] Emoção detectada na fala: {speech_dom} (Prob: {speech_probs[speech_dom]:.2f})")
                                 prev_speech_emotion_console = speech_dom
-                        cv2.rectangle(frame, (x1_face, y1_face), (x2_face, y1_face + 40), (0, 255, 255), -1)
+
+                        # Trocando a cor das emoções agregadas de acordo com a emoção
+                        color = emotion_color_map.get(last_combined_emotion.lower(), (255, 255, 255))
+                        cv2.rectangle(frame, (x1_face, y1_face), (x2_face, y1_face + 40), color, -1)
                         cv2.putText(frame, f"Agr: {last_combined_emotion}", (x1_face + 5, y1_face + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
+
                         if mouth_locations and face_idx == 0:
                             (x1_mouth, y1_mouth), (x2_mouth, y2_mouth) = mouth_locations[0]
                             last_mouth_coords = ((x1_mouth, y1_mouth), (x2_mouth, y2_mouth))
