@@ -15,6 +15,7 @@ import pyvirtualcam
 last_speech_emotion_display = "N/A"
 last_mouth_coords = None
 last_combined_emotion = "N/A"
+debug_mode = False 
 
 # mapeamento de opostos para detectar ironia
 opposite_pairs = [
@@ -33,11 +34,10 @@ emotion_color_map = {
     'fear': (128, 0, 128),       # Roxo escuro
     'surprise': (0, 165, 255),   # Laranja
     'happiness': (0, 255, 255),  # Amarelo
-    'contempt': (0, 255, 0),   # Verde
+    'contempt': (0, 255, 0),     # Verde
     'neutral': (192, 192, 192),  # Cinza claro
     'irony': (203, 182, 255),    # Rosa claro
 }
-
 
 def are_opposites(emotion1, emotion2):
     e1 = emotion1.lower()
@@ -45,7 +45,7 @@ def are_opposites(emotion1, emotion2):
     return any((e1 == a and e2 == b) or (e1 == b and e2 == a) for a, b in opposite_pairs)
 
 def main():
-    global last_speech_emotion_display, last_mouth_coords, last_combined_emotion
+    global last_speech_emotion_display, last_mouth_coords, last_combined_emotion, debug_mode
     parser = argparse.ArgumentParser(description='Camera and analytics arguments')
     parser.add_argument('--cameraID', type=int, default=0, help='ID da câmera caso for uma webcam')
     parser.add_argument('--saveframe', type=str, default="false", help='Salvar ou não salvar os frames')
@@ -53,8 +53,7 @@ def main():
     args = parser.parse_args()
 
     saveframe = args.saveframe.lower() == "true"
-    #dev = 'cuda' if args.device.lower() == 'gpu' else 'cpu'
-    dev = 'cpu'
+    dev = 'cuda' if args.device.lower() == 'gpu' else 'cpu'
     print('Dispositivo de processamento:', dev)
 
     video_stream = cv2.VideoCapture(args.cameraID)
@@ -68,12 +67,10 @@ def main():
     prev_face_emotion = ""
     prev_speech_emotion_console = ""
 
-    # inicia thread da fala
     print("Iniciando thread da fala...")
     start_speech_thread()
     print("Thread da fala OK")
 
-    # Configura câmera virtual
     print("Configurando câmera virtual...")
     width, height, fps = 1280, 720, 20
     cam = None
@@ -113,8 +110,7 @@ def main():
                         if prev_face_emotion != face_emotion:
                             print(f"[FACE] Emoção detectada na face: {face_emotion}")
                             prev_face_emotion = face_emotion
-                        cv2.rectangle(frame, (x1_face, y1_face), (x2_face, y2_face), (0, 255, 0), 3)
-                        cv2.putText(frame, face_emotion, (x1_face, y1_face - 5), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
+
                         if latest_speech_data:
                             speech_probs = latest_speech_data['probabilities']
                             speech_dom = max(speech_probs, key=speech_probs.get)
@@ -131,22 +127,31 @@ def main():
                                 print(f"[FALA] Emoção detectada na fala: {speech_dom} (Prob: {speech_probs[speech_dom]:.2f})")
                                 prev_speech_emotion_console = speech_dom
 
-                        # Trocando a cor das emoções agregadas de acordo com a emoção
+                        # Desenha de acordo com modo
+                        if debug_mode:
+                            # Face
+                            cv2.rectangle(frame, (x1_face, y1_face), (x2_face, y2_face), (0, 255, 0), 3)
+                            cv2.putText(frame, face_emotion, (x1_face, y1_face - 5), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
+                            # Fala
+                            if mouth_locations and face_idx == 0:
+                                (x1_mouth, y1_mouth), (x2_mouth, y2_mouth) = mouth_locations[0]
+                                cv2.rectangle(frame, (x1_mouth, y1_mouth), (x2_mouth, y2_mouth), (255, 0, 0), 2)
+                                cv2.putText(frame, f"Fala: {last_speech_emotion_display}", (x1_mouth, y2_mouth + 25),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+
+                        # Sempre desenha o agregado
                         color = emotion_color_map.get(last_combined_emotion.lower(), (255, 255, 255))
                         cv2.rectangle(frame, (x1_face, y1_face), (x2_face, y1_face + 40), color, -1)
-                        cv2.putText(frame, f"Agr: {last_combined_emotion}", (x1_face + 5, y1_face + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
+                        cv2.putText(frame, f"Agr: {last_combined_emotion}", (x1_face + 5, y1_face + 30),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
 
-                        if mouth_locations and face_idx == 0:
-                            (x1_mouth, y1_mouth), (x2_mouth, y2_mouth) = mouth_locations[0]
-                            last_mouth_coords = ((x1_mouth, y1_mouth), (x2_mouth, y2_mouth))
-                            cv2.rectangle(frame, (x1_mouth, y1_mouth), (x2_mouth, y2_mouth), (255, 0, 0), 2)
-                            cv2.putText(frame, f"Fala: {last_speech_emotion_display}", (x1_mouth, y2_mouth + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
-            elif last_mouth_coords:
+            elif last_mouth_coords and debug_mode:
                 (x1_mouth, y1_mouth), (x2_mouth, y2_mouth) = last_mouth_coords
                 cv2.rectangle(frame, (x1_mouth, y1_mouth), (x2_mouth, y2_mouth), (255, 0, 0), 2)
-                cv2.putText(frame, f"Fala: {last_speech_emotion_display}", (x1_mouth, y2_mouth + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+                cv2.putText(frame, f"Fala: {last_speech_emotion_display}", (x1_mouth, y2_mouth + 25),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
 
-            # Inverte horizontalmente para enviar ao Meet sem espelhamento de texto
+            # Inverte para corrigir texto no Meet
             output_frame = cv2.flip(frame, 1)
 
             if cam:
@@ -156,10 +161,13 @@ def main():
                 except Exception as e:
                     print(f"[WARN] falha ao enviar para virtual cam: {e}")
 
-            # Mostra no preview também a imagem invertida, para você ver como os outros verão
             cv2.imshow('Preview', output_frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
                 break
+            elif key == ord('3'):
+                debug_mode = not debug_mode
+                print(f"[DEBUG] Modo debug: {'ON' if debug_mode else 'OFF'}")
 
             if saveframe:
                 ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S%f")
