@@ -4,28 +4,19 @@ import threading
 import queue
 import time
 import collections
-import json # Para lidar com a saída do Vosk
+import json
 
 from vosk import Model, KaldiRecognizer
 import pyaudio 
 
-# Carrega o modelo Vosk (fora da função para carregar apenas uma vez)
-# Certifique-se de que o caminho para o modelo Vosk está correto!
-VOSK_MODEL_PATH = "vosk-model-small-en-us-0.15" # Atualize este caminho
+VOSK_MODEL_PATH = "vosk-model-small-en-us-0.15"
 try:
     vosk_model = Model(VOSK_MODEL_PATH)
 except Exception as e:
     print(f"[ERRO] Falha ao carregar o modelo Vosk em {VOSK_MODEL_PATH}: {e}")
     print("Certifique-se de que baixou e descompactou o modelo Vosk corretamente.")
-    # Se não puder carregar, o programa não deve continuar sem reconhecimento de fala
     exit() 
 
-# --- Fim das Adições para Vosk ---
-
-# Inicializa o reconhecedor (usaremos com Vosk agora)
-# recognizer = sr.Recognizer() # Não será usado diretamente com stream do PyAudio
-
-# Inicializa o classificador de emoções de texto globalmente
 text_emotion_classifier = pipeline(
     "text-classification",
     model="j-hartmann/emotion-english-distilroberta-base",
@@ -39,11 +30,10 @@ speech_buffer = collections.deque(maxlen=3)
 def speech_recognition_thread_func():
     print("[SPEECH] Thread de reconhecimento de fala iniciada.")
 
-    # Configurações do PyAudio para stream
-    CHUNK = 8192 # Tamanho do chunk de áudio para processar
+    CHUNK = 8192 # tamanho do chunk de áudio para processar
     FORMAT = pyaudio.paInt16
     CHANNELS = 1
-    RATE = 16000 # Vosk geralmente prefere 16kHz
+    RATE = 16000 # vosk geralmente prefere 16kHz
 
     p = pyaudio.PyAudio()
     stream = p.open(format=FORMAT,
@@ -52,7 +42,6 @@ def speech_recognition_thread_func():
                     input=True,
                     frames_per_buffer=CHUNK)
 
-    # Inicializa o reconhecedor Vosk para a stream
     vosk_recognizer = KaldiRecognizer(vosk_model, RATE)
 
     print("[SPEECH] Microfone ajustado e ouvindo para reconhecimento offline...")
@@ -60,17 +49,17 @@ def speech_recognition_thread_func():
     while not stop_speech_event.is_set():
         try:
             data = stream.read(CHUNK, exception_on_overflow=False)
-            # Verifica se há fala no chunk de áudio
+            # verifica se há fala no chunk de áudio
             if vosk_recognizer.AcceptWaveform(data):
                 result_json = vosk_recognizer.Result()
                 result = json.loads(result_json)
                 text = result.get('text', '').strip()
 
-                if text: # Apenas se houver texto reconhecido
+                if text: # só se houver texto reconhecido
                     print(f"[SPEECH] Você disse: {text}")
                     speech_buffer.append(text)
 
-                    # Classifica a emoção do texto
+                    # classifica a emoção do texto
                     predictions = text_emotion_classifier(text)[0]
                     sorted_preds = sorted(predictions, key=lambda x: x['score'], reverse=True)
                     top_emotion = sorted_preds[0]
@@ -81,7 +70,6 @@ def speech_recognition_thread_func():
                         "probabilities": {p['label']: p['score'] for p in predictions}
                     })
             # else:
-            #     # Se não houver fala aceita, pode pegar o partial result se desejar
             #     # partial_text = vosk_recognizer.PartialResult()
             #     # print(f"Partial: {json.loads(partial_text)['partial']}")
             #     pass
@@ -90,13 +78,12 @@ def speech_recognition_thread_func():
             print(f"[SPEECH] Erro inesperado na thread de fala: {e}")
             break 
 
-    # Garante que a stream é fechada ao sair do loop
+    # fecha ao sair do loop
     stream.stop_stream()
     stream.close()
     p.terminate()
     print("[SPEECH] Thread de reconhecimento de fala finalizada.")
 
-# --- Funções para Gerenciamento (permanecem as mesmas) ---
 def start_speech_thread():
     """Inicia a thread de reconhecimento de fala."""
     global speech_thread
@@ -137,3 +124,4 @@ if __name__ == '__main__':
     finally:
         stop_speech_thread()
         print("[MAIN] Programa principal finalizado.")
+
