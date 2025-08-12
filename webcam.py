@@ -13,29 +13,25 @@ from speech import start_speech_thread, stop_speech_thread, get_latest_speech_em
 import pyvirtualcam
 from collections import Counter
 
-# Variáveis globais
 last_speech_emotion_display = "N/A"
 last_mouth_coords = None
-last_combined_emotion = None  # None = ainda não calculado
-debug_mode = False  # Modo debug ON/OFF
+last_combined_emotion = None  # none = ainda não foi calculado
+debug_mode = False  
 
-# Coleta temporizada
 collecting = False
 collected_face = []
 collected_speech = []
 collected_agg = []
 
-# Mudar para False caso nao queira imagem invertida
-flip_img = True
+flip_img = False
 
-# Controle para saber se já vimos essa fala (timestamp)
+# controle para saber se já vimos essa fala (timestamp)
 last_speech_ts = None
 
-# Guarda última face detectada para uso quando chega fala mas não há face no mesmo frame
+# guardando última face detectada para uso quando chega fala mas não há face no mesmo frame
 last_face_emotion_global = None
 last_face_scores_global = None
 
-# mapeamento de opostos
 opposite_pairs = [
     ("joy", "sadness"),
     ("happiness", "sadness"),
@@ -138,7 +134,7 @@ def main():
             # pega última fala
             latest_speech_data = get_latest_speech_emotion()
 
-            # Detecta se é uma nova fala
+            # vê se é uma nova fala
             new_speech_arrived = False
             speech_probs = None
             speech_dom = None
@@ -176,10 +172,10 @@ def main():
                         use_face_emotion = face_emotion if face_emotion else last_face_emotion_global
 
                         if use_face_emotion and speech_dom and are_opposites(speech_dom, use_face_emotion):
-                            # Divergência → mostra as duas emoções separadas
+                            # quando há muita divergência de emoções (opostas)
                             last_combined_emotion = f"{use_face_emotion} and {speech_dom}"
                         elif use_face_scores and speech_probs:
-                            # Fusão probabilística
+                            # fusão de emoções (similares)
                             labels = set(list(use_face_scores.keys()) + list(speech_probs.keys()))
                             combined_probs = {
                                 label: (0.35 * use_face_scores.get(label, 0.0) + 0.65 * speech_probs.get(label, 0.0))
