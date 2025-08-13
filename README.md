@@ -1,49 +1,37 @@
-# EmotionRAM - Faces
+# plaTEA 
 
-![header](front.gif)
+plaTEA é uma aplicação capaz de reconhecer a emoção detectada através da análise da fala e da face do usuário. Ela foi idealizada para ser utilizada em reuniões virtuais, a fim de auxiliar usuários que estão no espectro autista.
 
-This repository contains a minimal working example of one of our experiments from EmotionRAM for facial expression recognition. This means that we are focusing entirely on facial expressions in this case, without concern for context or body language.
+Esse projeto possui como base o [EmotionRAM](https://gitcin.cin.ufpe.br/voxarlabs/emotionram_faces_demo), trabalho realizado pelo Voxar Labs.
 
-This demo is based on EfficientNet-B0 architecture and was trained on AfeW. So, for my fellow LatinX colleagues, some problems with fairness are expected, as AfeW is not a culturally representative dataset. We will be publishing our dataset for brazilian emotion recognition soon to solve this limitation.
+## Uso
 
-## Usage
+Para utilização, olhe o arquivo `installinstructions.txt` para os comandos de instalação dos pacotes. Recomenda-se que seja utilizado um ambiente virtual Anaconda para isso. Então, basta rodar o arquivo `webcam.py` no seu terminal.
 
-Refer to the installinstructions.txt file for the commands to install the packages. It is recommended to use an Anaconda environment to configure a virtual environment. Afterwards, just run `webcam.py` from the terminal or other IDE. You can choose the webcam ID and the device (CPU or GPU) by using the --cameraID and --device parameters.
+É necessário também que exista uma webcam virtual disponível no computador do usuário, para que seja sincronizada com os ambientes de reuniões virtuais.
 
-Similarly, inference.py allows you to predict emotions on a video stored locally. This file looks for an `input.mp4` into the folder and saves the video as `output.mp4`. Please notice that you need to install [ffmpeg](https://ffmpeg.org/download.html) for this to work properly.
-
-## Setup Instructions
+## Instruções de setup
 
 ```Bash
-# Create and activate a Conda environment
-conda create -n emotionram python=3.8 -y
-conda activate emotionram
+# Para criar e ativar um ambiente virtual
+conda create -n platea python=3.8 -y
+conda activate platea
 
-# Install all the required Python packages
+# Instalar os pacotes requeridos
 pip install -r requirements.txt
 ```
 
-### Running the Application
-
-To run real-time analysis from your webcam:
+### Rodando a aplicação
 
 ```Bash
-# Use your GPU (MPS on Mac, CUDA on others)
+# Usando GPU (MPS on Mac, CUDA on others)
 python webcam.py --device gpu
 
-# Or force it to use CPU
+# Ou forçando a utilização da CPU
 python webcam.py --device cpu
 
-# To use a different camera, specify its ID
+# Para utilização de uma camera diferente, especifique o ID
 python webcam.py --cameraID 1
 ```
 
-To run inference on a local video file:
-
-Place your video in the main project folder and name it input.mp4.
-
-Run the script:
-
-```Bash
-python inference.py
-```
+Após isso, basta sincronizar ao seu ambiente de reunião virtual.
