@@ -34,4 +34,4 @@ python webcam.py --device cpu
 python webcam.py --cameraID 1
 ```
 
-Após isso, basta sincronizar ao seu ambiente de reunião virtual.
+Após isso, basta sincronizar com o seu ambiente de reunião virtual.
